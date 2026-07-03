@@ -1,0 +1,31 @@
+# We provide three different pre-trained CDL models. For all three, we use
+# n_ch_out = n_filters = n_conv_kernel_filters which can be set to 16, 32 or 64.
+# If set to 16, we use a n_conv_kernel_size = 11, otherwise n_conv_kernel = 9.
+model:
+  name: cdl
+  cnn_block:
+    n_ch_in: 2
+    n_ch_out: 16 # must be equal to n_conv_kernel_filters used below
+    n_enc_stages: 3
+    n_convs_per_stage: 2
+    n_filters: 16 #N.B. this is a parameter of the U-Net and can (in principle) differ from the number of filters of the conv dictionary
+  n_iterations: 64
+  conv_dictionary: #parameters determining the pre-trained conv kernel
+    n_conv_kernel_filters: 16
+    n_conv_kernel_size: 11
+    sparsity_param: 0.5
+    lowpass_param: 0.5
+
+training: #the split provided uses Ntrain/Nvalidation/Ntest = 3575/447/447
+  n_training: 4 
+  n_validation: 3
+  n_epochs: 4
+  batch_size: 2
+  noise_variance:
+    low: 0.05
+    high: 0.4
+  n_k1: [120, 160, 200]
+  learning_rate: 0.0001
+  learning_rate_low_pass_param: 0.1
+  weight_decay: 0.00001
+

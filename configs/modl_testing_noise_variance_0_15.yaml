@@ -1,0 +1,14 @@
+model:
+  name: modl
+  cnn_block:
+    n_layers: 5
+    n_ch_in: 2
+    n_ch_out: 2
+    n_filters: 64
+  n_iterations: 8
+
+testing:
+  n_test: 447
+  batch_size: 5
+  noise_variance: 0.15
+  n_k1: 160

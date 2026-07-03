@@ -9,7 +9,7 @@ class TVParameterMapNetwork2D(torch.nn.Module):
     This is a wrapper for a network block that maps an image of shape (batch, 2, ny, nx) to one
     spatially adaptive regularization parameter map of shape (batch, 1, ny, nx).
     In the forward, the input image, which is expected to follow the MRpro shapes convention, i.e.
-    (batch, coils, z, y, x) with coils,z=1 here (for 2D problems) is first reshaped to (batch * coils, 2, ny, nx),
+    (batch, coils, z, y, x) with coils, z=1 here (for 2D problems), is first reshaped to (batch * coils, 2, ny, nx),
     then fed into the network block.
     The output of the network is then reshaped to be used as weight in the definition of the weighted
     TV functional in the PDHG algorithm.
@@ -20,7 +20,7 @@ class TVParameterMapNetwork2D(torch.nn.Module):
 
         Parameters
         ----------
-        parameter_map_network
+        cnn_block
             A neural network for estimating the regularization parameter maps.
         """
         super().__init__()
@@ -28,7 +28,7 @@ class TVParameterMapNetwork2D(torch.nn.Module):
 
         # raw parameter for global scaling; softplus is used to "activate" it and make it strictly positive
         self._global_scaling = torch.nn.Parameter(
-            torch.tensor([0.0], requires_grad=True)
+            torch.tensor([-1.0], requires_grad=True)
         )
 
     @property

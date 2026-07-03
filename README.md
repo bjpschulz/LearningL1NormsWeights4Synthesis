@@ -91,7 +91,7 @@ target = batch["target"].to(device)
 ```
 
 ### Reconstruction
-Then, reconstructing images with the CDL-$`\Lambda`$ method can be done by 
+Then, reconstructing images with the CDL-$`\boldsymbol{\Lambda}`$ method can be done by 
 
 ```python
 # import models
@@ -186,5 +186,5 @@ If you find this code useful and use it for your work, please cite
 ```
 
 ## Further readings
-- An extension of the CDL-$`\Lambda`$ method (accepted for ICIP 2026) to be able to change the convolutional dictionary at inference time can be found here.
+- An extension of the CDL-$`\boldsymbol{\Lambda}`$ method (accepted for ICIP 2026) to be able to change the convolutional dictionary at inference time can be found here.
 https://arxiv.org/pdf/2602.21707.

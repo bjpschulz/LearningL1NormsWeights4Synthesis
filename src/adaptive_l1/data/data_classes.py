@@ -194,7 +194,8 @@ def normalize_kspace_data_and_images(
     target: torch.Tensor | None,
 ) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None]:
     """Normalize k-space data and (possibly) adjoint and target images."""
-    factor = 1.0 / kdata.abs().std()
+    factor = 1.0 / adjoint.abs().amax(dim=(-2,-1),keepdim=True)
+    
     kdata *= factor
     if adjoint is not None:
         adjoint *= factor

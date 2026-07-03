@@ -1,0 +1,15 @@
+model:
+  name: tv
+  cnn_block:
+    n_ch_in: 2 #must be two for the complex-valued input image
+    n_ch_out: 1 #must be one to map the complex-valued input image to one spatially adaptive parameter map
+    n_enc_stages: 2
+    n_convs_per_stage: 2
+    n_filters: 16
+  n_iterations: 128
+
+testing:
+  n_test: 447
+  batch_size: 5
+  noise_variance: 0.30
+  n_k1: 160

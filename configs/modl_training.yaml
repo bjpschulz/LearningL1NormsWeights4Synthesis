@@ -1,0 +1,22 @@
+model:
+  name: modl
+  cnn_block:
+    n_layers: 5
+    n_ch_in: 2
+    n_ch_out: 2
+    n_filters: 64
+  n_iterations: 8
+
+training: #the split provided uses Ntrain/Nvalidation/Ntest = 3575/447/447
+  n_training: 3575
+  n_validation: 447
+  n_epochs: 25
+  batch_size: 4
+  noise_variance:
+    low: 0.05
+    high: 0.4
+  n_k1: [120, 160, 200]
+  learning_rate: 0.0001
+  learning_rate_scalar: 0.01
+  weight_decay: 0.00001
+

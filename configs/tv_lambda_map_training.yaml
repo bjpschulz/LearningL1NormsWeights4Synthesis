@@ -3,22 +3,22 @@ model:
   cnn_block:
     n_ch_in: 2 #must be two for the complex-valued input image
     n_ch_out: 1 #must be one to map the complex-valued input image to one spatially adaptive parameter map
-    n_enc_stages: 3
+    n_enc_stages: 2
     n_convs_per_stage: 2
     n_filters: 16
   n_iterations: 128
 
-training:
-  n_training: 4
-  n_validation: 2
-  n_epochs: 12
+training: #the split provided uses Ntrain/Nvalidation/Ntest = 3575/447/447
+  n_training: 3575
+  n_validation: 447
+  n_epochs: 16
   batch_size: 2
-  noise_std:
-    low: 0.075
-    high: 0.30
+  noise_variance:
+    low: 0.05
+    high: 0.4
   n_k1: [120, 160, 200]
   learning_rate: 0.0001
-  weight_decay: 0.00001
   learning_rate_global_scaling: 0.1
+  weight_decay: 0.000001
   
 

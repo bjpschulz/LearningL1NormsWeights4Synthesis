@@ -4,23 +4,21 @@ from einops import rearrange
 
 
 class ConvSynthesisParameterMapNetwork2D(torch.nn.Module):
-    r"""A for estimating regularization parameter maps for 2D Convolutional Synthesis based regularizatzion
+    r"""A network for estimating sparsity level parameter maps for 2D Convolutional Synthesis based regularizatzion
     for MRI.
-
-    This network estimates regularization parameter maps for 2D TV-reconstruction MR problems.
-    The network is based on the work
-        ..  [KOF2025] Kofler A, Calatroni L, Kolbitsch C,  Papafitsoros K (2025)
-            Learning Spatially Adaptive l1-Norms Weights for Convolutional Synthesis Regularization.
-            Proceedings of the 33rd IEEE International Conference on Signal Processing (EUSIPCO).
-
     """
 
-    def __init__(self, cnn_block: torch.nn.Module, upper_bound=10.0) -> None:
+    def __init__(
+        self,
+        cnn_block: torch.nn.Module,
+        upper_bound: float = 0.5,
+        sigmoid_beta: float = 8.0,
+    ) -> None:
         r"""Initialize Sparsity Level Parameter Map Network.
 
         Parameters
         ----------
-        parameter_map_network
+        cnn_block
             A neural network for estimating the sparsity level parameter maps.
         upper_bound
             upper bound to be imposed on the obtainable sparsity level maps.
@@ -30,6 +28,8 @@ class ConvSynthesisParameterMapNetwork2D(torch.nn.Module):
 
         # upper bound of the sparsity level maps
         self.register_buffer("upper_bound", torch.tensor(upper_bound))
+
+        self.sigmoid_beta = sigmoid_beta  # determines the "slope" of the sigmoid
 
     def forward(self, image: torch.Tensor) -> torch.Tensor:
         r"""Apply the network to estimate sparsity level parameter maps.
@@ -45,22 +45,30 @@ class ConvSynthesisParameterMapNetwork2D(torch.nn.Module):
         regularization_parameter_map = (
             regularization_parameter_map.swapaxes(0, 1).unsqueeze(-3).unsqueeze(-3)
         )
-        regularization_parameter_map = self.upper_bound * torch.nn.functional.sigmoid(
-            regularization_parameter_map
+        regularization_parameter_map = self.upper_bound / (
+            1.0 + torch.exp(-self.sigmoid_beta * regularization_parameter_map)
         )
         return regularization_parameter_map
 
 
 class SpatiallyAdaptiveConvSynthesisNet2D(torch.nn.Module):
-    r"""Unrolled primal dual hybrid gradient with spatially adaptive regularization parameter maps for TV
-    for 2D imaging.
+    r"""Unrolled FISTA with spatially adaptive regularization parameter maps for convolutional synthesis
+    regularization for 2D imaging.
 
-    Solves the minimization problem
+    The network is based on the work
+        ..  [KOF2025] Kofler A, Calatroni L, Kolbitsch C,  Papafitsoros K (2025)
+            Learning Spatially Adaptive l1-Norms Weights for Convolutional Synthesis Regularization.
+            Proceedings of the 33rd IEEE International Conference on Signal Processing (EUSIPCO).
 
-        :math:`\min_x \frac{1}{2}\| Ax - y\|_2^2 + \| \Lambda_{\theta} \nabla x\|_1`,
+
+    Solves the minimization problems
+        :math:`x_{low}:=\argmin_x \frac{1}{2}\| x - x0\|_2^2 + \frac{\beta}{2}\| \nabla x\|_2^2`,
+        :math:`x^{\ast}:=D s^{\ast}` + x_{low},
+        :math:`s^{\ast}:=\argmin_s \frac{1}{2}\| ADs - y^{\prime}\|_2^2 + \| \Lambda_{\theta} s\|_1`,
     where :math:`A` is the forward linear operator, :math:`\nabla` is the gradient operator,
-    and :math:`\Lambda_{\theta}` is a strictly positive regularization parameter map that is estimated from
-    an input image with a network :math:`u_{\theta}` with trainable parameters :math:`\theta`.
+    :math:`D` is the convolutional dictionary operator, :math:`y^{\prime}` is the high-passed k-space data
+    and :math:`\Lambda_{\theta}` are strictly positive sparsity level maps that are estimated from an
+    input image :math:`x_0:=A^H y` with a network :math:`u_{\theta}` with trainable parameters :math:`\theta`.
 
     N.B. The entire network sticks to the convention of MRpro, i.e. we work with images and k-space data
     of shape (other*, coils, z, y, x). However, because here showcase the method for 2D problems,
@@ -74,7 +82,7 @@ class SpatiallyAdaptiveConvSynthesisNet2D(torch.nn.Module):
         parameter_map_network: torch.nn.Module,
         n_iterations: int = 64,
     ):
-        r"""Initialize Adaptive TV Network.
+        r"""Initialize Adaptive Conv Synthesis Network.
 
         Parameters
         ----------
@@ -170,6 +178,7 @@ class SpatiallyAdaptiveConvSynthesisNet2D(torch.nn.Module):
 
     @property
     def low_pass_filtering_parameter(self):
+        """The positive low-pass parameter."""
         return torch.nn.functional.softplus(
             self._low_pass_filtering_parameter, beta=1.0
         )

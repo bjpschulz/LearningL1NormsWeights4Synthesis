@@ -7,10 +7,6 @@ class MoDLBlock(torch.nn.Module):
     """Am implementation of the simple CNN-block (Conv+BN+ReLU, last layer no ReLU)
     as described in the MoDL paper.
 
-    ..  [AGG2018] Aggarwal, H K, Mani M P, Jacob, M (2018)
-            MoDL: Model-Based Deep Learning Architecture for Inverse Problems.
-            IEEE Transactions on Medical Imaging, Volume 38, Number 2, p. 394--405.
-
     The forward returns residual output: net(x) + x, when shapes are compatible.
     """
 
@@ -32,7 +28,6 @@ class MoDLBlock(torch.nn.Module):
         layers = []
 
         if n_layers == 1:
-            # Single layer: in_channels -> out_channels, no ReLU (per "last layer no ReLU")
             layers.append(
                 torch.nn.Conv2d(
                     n_ch_in, n_ch_out, kernel_size, padding=padding, bias=bias
@@ -40,7 +35,6 @@ class MoDLBlock(torch.nn.Module):
             )
             layers.append(torch.nn.BatchNorm2d(n_ch_out))
         else:
-            # Layer 1: n_ch_in -> n_filters (with ReLU)
             layers.append(
                 torch.nn.Conv2d(
                     n_ch_in, n_filters, kernel_size, padding=padding, bias=bias
@@ -49,7 +43,6 @@ class MoDLBlock(torch.nn.Module):
             layers.append(torch.nn.BatchNorm2d(n_filters))
             layers.append(torch.nn.ReLU(inplace=True))
 
-            # Layers 2..N-1: n_filters -> n_filters (with ReLU)
             for _ in range(n_layers - 2):
                 layers.append(
                     torch.nn.Conv2d(
@@ -63,7 +56,6 @@ class MoDLBlock(torch.nn.Module):
                 layers.append(torch.nn.BatchNorm2d(n_filters))
                 layers.append(torch.nn.ReLU(inplace=True))
 
-            # Layer N: n_filters -> n_ch_out (NO ReLU)
             layers.append(
                 torch.nn.Conv2d(
                     n_filters, n_ch_out, kernel_size, padding=padding, bias=bias
@@ -95,8 +87,6 @@ class MoDLBlock(torch.nn.Module):
             ).contiguous()
         )
 
-        # Residual add is only valid if shapes match.
-        # If you always want residual learning, set out_channels == in_channels.
         if image_regularized.shape != image_in.shape:
             raise RuntimeError(
                 f"Residual add requires net(x) and x to have the same shape, "
@@ -108,11 +98,15 @@ class MoDLBlock(torch.nn.Module):
 
 
 class MoDL(torch.nn.Module):
-    """Unrolled Model-based Depp Learning (MoDL) Method for 2D MRI reconstruction.
+    """Unrolled Model-based Depp Learning (MoDL) Method for 2D MRI reconstruction based on
+
+        ..  [AGG2018] Aggarwal, H K, Mani M P, Jacob, M (2018)
+            MoDL: Model-Based Deep Learning Architecture for Inverse Problems.
+            IEEE Transactions on Medical Imaging, Volume 38, Number 2, p. 394--405.
 
     The following netwrk performs the following operations for a fixed number of iterations
         :math:`z_k = \mathrm{NET}_{\Theta}(x_k)`,
-        :math:`\min_x \frac{1}{2}\| Ax - y\|_2^2 + \frac{\lambda}{2}\| x - z_k\|_2^2`,
+        :math:`x_{k+1} =\argmin_x \frac{1}{2}\| Ax - y\|_2^2 + \frac{\lambda}{2}\| x - z_k\|_2^2`,
 
     where :math:`A` is the forward linear operator, :math:`\lambda` is the regularization parameter.
 
@@ -134,7 +128,7 @@ class MoDL(torch.nn.Module):
         self.normalize_input = normalize_input
         self._regularization_parameter = torch.nn.Parameter(
             torch.tensor(
-                2.0,
+                -3.0,
             ),
             requires_grad=True,
         )

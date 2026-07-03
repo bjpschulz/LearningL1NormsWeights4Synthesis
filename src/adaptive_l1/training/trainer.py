@@ -107,7 +107,8 @@ def train_model(
             sample_id = 5  # just picked for demonstration purposes
             batch = next(itertools.islice(validation_loader, sample_id, sample_id + 1))
 
-            recon, target = forward_pass(model, batch, device)
+            with torch.no_grad():
+                recon, target = forward_pass(model, batch, device)
 
             wandb.log({"validation-loss": validation_loss}, step=epoch + 1)
             fig, ax = plt.subplots(1, 3, figsize=(1 * 15, 3 * 15))
@@ -146,6 +147,7 @@ def train_model(
 
             plt.setp(ax, xticks=[], yticks=[])
             wandb.log({"training-figure": fig})
+            plt.close()
         else:
             with open(metrics_file, "a", newline="") as f:
                 writer = csv.writer(f)
