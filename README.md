@@ -52,7 +52,7 @@ from adaptive_l1.data.utils import load_config
 
 cfg_data = load_config("your/path/configs/data.yaml")
 
-noise_std = 0.3 #noise standard deviation
+noise_variance = 0.3 #noise variance
 n_k1 = 160 # number of acquired samples (phase encoding direction)
 n_training = 9 #only load a subportion of all available files
 
@@ -71,7 +71,7 @@ training_image_data = mrpro.phantoms.FastMRIImageDataset(
 
 training_data = LowFieldMRDataset(
     image_dataset=training_image_data,
-    noise_variance=noise_std**2,
+    noise_variance=noise_variance,
     n_k1=n_k1,
     base_seed=,
 )
