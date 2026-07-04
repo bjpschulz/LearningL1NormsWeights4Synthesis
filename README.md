@@ -41,7 +41,7 @@ create_data_split(data_dir, split_dir)
 
 
 
-### Data Loading and retrospective data simulation
+### Data Loading and Retrospective Data Simulation
 Retrospectively generate Low-Field MR data
 ```python
 import mrpro
@@ -185,6 +185,6 @@ If you find this code useful and use it for your work, please cite
 }
 ```
 
-## Further readings
+## Further Readings
 - An extension of the CDL-$`\boldsymbol{\Lambda}`$ method (accepted for ICIP 2026) to be able to change the convolutional dictionary at inference time can be found here.
 https://arxiv.org/pdf/2602.21707.
