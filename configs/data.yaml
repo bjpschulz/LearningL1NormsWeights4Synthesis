@@ -1,13 +1,20 @@
 # the directory containing all .h5 files
 data_dir:
-  /your/path/to/the/h5/files/
+  /echo/allgemein/resources/publicTrainingData/fastmri/brain_multicoil_train/
 
 # the directory containing the .txt files of the splits; 
 # "fastMRI_training.txt", "fastMRI_validation.txt" and "fastMRI_testing.txt"
 split_dir:
-  /your/path/to/the/fastMRI/split/files
+  /home/schulz51/projects/LearningL1NormsWeights4Synthesis/data/fastMRI_splits/
 
 # the directory containing the convolutional dictionary filters as .pt files
 conv_dictionary_dir:
-  /your/path/to/the/convolutional/dictionary/filters
+  /home/schulz51/projects/LearningL1NormsWeights4Synthesis/data/dictionary_filters/
 
+# the directories containing the sets of convolutional dictionary filters (.pt files)
+# used for multi-dictionary training and validation, respectively
+conv_dictionary_training_dir:
+  /home/schulz51/projects/LearningL1NormsWeights4Synthesis/data/dictionary_filters_training/
+
+conv_dictionary_validation_dir:
+  /home/schulz51/projects/LearningL1NormsWeights4Synthesis/data/dictionary_filters_validation/

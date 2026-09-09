@@ -1,0 +1,36 @@
+# Multi-dictionary training of the convolutional synthesis model with spatially
+# adaptive sparsity level maps. Instead of a single, fixed pre-trained convolutional
+# dictionary, a set of pre-trained dictionaries is used (see the directories specified
+# in configs/data.yaml); during training, a random dictionary is sampled for each
+# batch and the model adapts accordingly ("multi-dictionary CDL").
+# The sparsity level maps are estimated filter-wise from the real/imaginary part of the
+# analysis of the input image (D^H x0), i.e. the U-Net is a 2-to-1 channel network and
+# independent of the number of dictionary filters.
+model:
+  name: cdl_multi_dict
+  cnn_block:
+    n_ch_in: 2
+    n_ch_out: 1 # must be 1 for the filterwise parameter map network
+    n_enc_stages: 3
+    n_convs_per_stage: 2
+    n_filters: 16
+  n_iterations: 64  # 64 usually
+  parameter_map_network:
+    # bounds of the sparsity level maps, imposed via a sigmoid; setting
+    # upper_bound: 10.0 and sigmoid_beta: 1.0 reproduces the regularization
+    # parameter bounds (0, 10) used in the multi_dict_repo
+    upper_bound: 0.5
+    sigmoid_beta: 8.0
+
+training: #the split provided uses Ntrain/Nvalidation/Ntest = 3575/447/447
+  n_training: 3575
+  n_validation: 447
+  n_epochs: 50
+  batch_size: 1
+  noise_variance:
+    low: 0.05
+    high: 0.4
+  n_k1: [120, 160, 200]
+  learning_rate: 0.0001
+  learning_rate_low_pass_param: 0.1
+  weight_decay: 0.00001
