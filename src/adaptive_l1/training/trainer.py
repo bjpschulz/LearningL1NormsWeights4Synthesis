@@ -2,6 +2,7 @@ import mrpro
 import torch
 from tqdm import tqdm
 import itertools
+import random
 
 
 def forward_pass(model, batch, device):
@@ -28,6 +29,8 @@ def train_model(
     n_epochs,
     run_dir,
     config,
+    training_dictionaries=None,
+    validation_dictionaries=None,
 ):
     use_wandb = False
     try:
@@ -69,7 +72,13 @@ def train_model(
             position=1,
             leave=False,
             disable=False,
-        ):
+            ):
+            if training_dictionaries is not None:
+                # sample a random convolutional dictionary for the current batch
+                dictionary = random.choice(training_dictionaries)
+                with torch.no_grad():
+                    model.set_kernel(dictionary.kernel)
+
             recon, target = forward_pass(model, batch, device)
             loss = loss_function(
                 torch.view_as_real(recon),
@@ -80,28 +89,47 @@ def train_model(
             optimizer.step()
 
         model.eval()
-        validation_loss_sum = 0.0
-        validation_n_samples = 0
+
+        if validation_dictionaries is None:
+            validation_dictionaries_loop = [None]
+        else:
+            validation_dictionaries_loop = validation_dictionaries
 
         with torch.no_grad():
-            for batch in tqdm(
-                validation_loader,
-                desc="evaluation loop",
-                position=1,
-                leave=False,
-                disable=False,
-            ):
-                recon, target = forward_pass(model, batch, device)
-                loss = loss_function(
-                    torch.view_as_real(recon),
-                    torch.view_as_real(target),
+            validation_dictionary_losses = []
+
+            for dictionary in validation_dictionaries_loop:
+                if dictionary is not None:
+                    model.set_kernel(dictionary.kernel)
+
+                validation_loss_sum = 0.0
+                validation_n_samples = 0
+
+                for batch in tqdm(
+                    validation_loader,
+                    desc="evaluation loop",
+                    position=1,
+                    leave=False,
+                    disable=False,
+                ):
+                    recon, target = forward_pass(model, batch, device)
+                    loss = loss_function(
+                        torch.view_as_real(recon),
+                        torch.view_as_real(target),
+                    )
+
+                    batch_size = target.shape[0]
+                    validation_loss_sum += loss.item() * batch_size
+                    validation_n_samples += batch_size
+
+                validation_dictionary_losses.append(
+                    validation_loss_sum / validation_n_samples
                 )
 
-                batch_size = target.shape[0]
-                validation_loss_sum += loss.item() * batch_size
-                validation_n_samples += batch_size
-
-            validation_loss = validation_loss_sum / validation_n_samples
+            # average validation loss over the validation dictionaries
+            validation_loss = sum(validation_dictionary_losses) / len(
+                validation_dictionary_losses
+            )
 
         if use_wandb:
             sample_id = 5  # just picked for demonstration purposes
