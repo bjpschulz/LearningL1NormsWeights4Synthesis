@@ -6,14 +6,17 @@ from adaptive_l1.data.data_classes import LowFieldMRDataset
 
 from adaptive_l1.models.utils import (
     define_cdl_model,
+    define_cdl_multi_dict_model,
     define_tv_model,
     define_modl_model,
 )
 from adaptive_l1.models.utils import (
     create_cdl_run_directory,
+    create_cdl_multi_dict_run_directory,
     create_tv_run_directory,
     create_modl_run_directory,
 )
+from adaptive_l1.models.utils import load_conv_dictionaries
 from adaptive_l1.data.utils import load_config
 
 from adaptive_l1.training.trainer import train_model
@@ -96,6 +99,9 @@ validation_loader = torch.utils.data.DataLoader(
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+training_dictionaries = None
+validation_dictionaries = None
+
 
 if cfg_training["model"]["name"] == "modl":
     model = define_modl_model(cfg_training)
@@ -145,9 +151,38 @@ elif cfg_training["model"]["name"] == "cdl":
         },
     ]
 
+elif cfg_training["model"]["name"] == "cdl_multi_dict":
+    training_dictionaries = load_conv_dictionaries(
+        cfg_data["conv_dictionary_training_dir"]
+    )
+    validation_dictionaries = load_conv_dictionaries(
+        cfg_data["conv_dictionary_validation_dir"]
+    )
+
+    model = define_cdl_multi_dict_model(
+        cfg_training, kernel=training_dictionaries[0].kernel
+    )
+    run_dir = create_cdl_multi_dict_run_directory(cfg_training, len(training_dictionaries))
+
+    n_training_dictionaries = len(training_dictionaries)
+    n_validation_dictionaries = len(validation_dictionaries)
+
+    params_list = [
+        {
+            "params": list(model.parameter_map_network.cnn_block.parameters()),
+            "lr": cfg_training["training"]["learning_rate"],
+            "weight_decay": cfg_training["training"]["weight_decay"],
+        },
+        {
+            "params": [model._low_pass_filtering_parameter],
+            "lr": cfg_training["training"]["learning_rate_low_pass_param"],
+        },
+    ]
+
 else:
     raise ValueError(
-        f"Model name should be either 'modl', 'cdl', or 'tv', but got{cfg_training['model']['name']}"
+        f"Model name should be either 'modl', 'cdl', 'cdl_multi_dict' or 'tv',"
+        f" but got {cfg_training['model']['name']}"
     )
 
 optimizer = torch.optim.Adam(params=params_list)
@@ -169,4 +204,6 @@ model = train_model(
     n_epochs=cfg_training["training"]["n_epochs"],
     run_dir=run_dir,
     config=config,
+    training_dictionaries=training_dictionaries,
+    validation_dictionaries=validation_dictionaries,
 )
