@@ -31,13 +31,18 @@ class ConvSynthesisParameterMapNetwork2D(torch.nn.Module):
 
         self.sigmoid_beta = sigmoid_beta  # determines the "slope" of the sigmoid
 
-    def forward(self, image: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, image: torch.Tensor, conv_dictionary_op: mrpro.operators.LinearOperator | None = None # parameter can be either a LinearOperator or None
+    ) -> torch.Tensor:
         r"""Apply the network to estimate sparsity level parameter maps.
 
         Parameters
         ----------
         image
             the image from which the sparsity level parameter maps should be estimated.
+        conv_dictionary_op
+            the convolutional dictionary operator. Unused here, part of the interface
+            shared with `FilterwiseConvSynthesisParameterMapNetwork2D`.
         """
         image = rearrange(torch.view_as_real(image), "batch 1 1 y x ch -> batch ch y x")
         regularization_parameter_map = self.cnn_block(image)
@@ -45,6 +50,91 @@ class ConvSynthesisParameterMapNetwork2D(torch.nn.Module):
         regularization_parameter_map = (
             regularization_parameter_map.swapaxes(0, 1).unsqueeze(-3).unsqueeze(-3)
         )
+        regularization_parameter_map = self.upper_bound / (
+            1.0 + torch.exp(-self.sigmoid_beta * regularization_parameter_map)
+        )
+        return regularization_parameter_map
+
+
+class FilterwiseConvSynthesisParameterMapNetwork2D(torch.nn.Module):
+    r"""A network for estimating sparsity level parameter maps for 2D Convolutional Synthesis based regularization
+    for MRI from the sparse-code-like representation of the input image.
+
+    For each convolutional dictionary filter, the real and imaginary part of the analysis of the input
+    image (:math:`D^H x_0`) are stacked to a two-channel image and the same 2-to-1 channel CNN is applied
+    to each of them. As the CNN is independent of the number of dictionary filters, the convolutional
+    dictionary can be exchanged at training or inference time.
+    """
+
+    def __init__(
+        self,
+        cnn_block: torch.nn.Module,
+        upper_bound: float = 0.5,
+        sigmoid_beta: float = 8.0,
+    ) -> None:
+        r"""Initialize Sparsity Level Parameter Map Network.
+
+        Parameters
+        ----------
+        cnn_block
+            A neural network for estimating the sparsity level parameter maps,
+            taking a two-channel (real/imaginary part) input image.
+        upper_bound
+            upper bound to be imposed on the obtainable sparsity level maps.
+        sigmoid_beta
+            determines the "slope" of the sigmoid.
+        """
+        super().__init__()
+        self.cnn_block = cnn_block
+
+        # upper bound of the sparsity level maps
+        self.register_buffer("upper_bound", torch.tensor(upper_bound))
+
+        self.sigmoid_beta = sigmoid_beta
+
+    def forward(
+        self, image: torch.Tensor, conv_dictionary_op: mrpro.operators.ConvSynthesisDictionaryOp
+    ) -> torch.Tensor:
+        r"""Apply the network to estimate sparsity level parameter maps.
+
+        Parameters
+        ----------
+        image
+            the image from which the sparsity level parameter maps should be estimated.
+        conv_dictionary_op
+            the convolutional dictionary operator defining the dictionary the parameter
+            maps are estimated for.
+        """
+        # apply the analysis of the convolutional dictionary to the image; the
+        # analysis operator is used instead of the adjoint of the synthesis
+        # operator as it does not rely on autograd and matches the multi-dictionary
+        # convention of analyzing with the (unflipped) filters
+        analysis_op = mrpro.operators.ConvAnalysisDictionaryOp(
+            kernel=conv_dictionary_op.kernel, pad_mode=conv_dictionary_op.pad_mode
+        )
+        (sparse_code_like,) = analysis_op(image)
+        n_filters, n_batch = sparse_code_like.shape[0], image.shape[0]
+
+        # stack the real and imaginary part of the sparse-code-like map of each
+        # filter to a two-channel image, moving the filter index to the batch
+        sparse_code_two_channel = rearrange(
+            torch.view_as_real(sparse_code_like),
+            "filter batch 1 1 y x ch -> (filter batch) ch y x",
+        )
+
+        # estimate one sparsity level map per filter with the 2-to-1 channel CNN
+        regularization_parameter_map = self.cnn_block(sparse_code_two_channel)
+
+        # bring back the filter dimension; the resulting real-valued map matches
+        # the complex sparse code layout (filter, batch, 1, 1, y, x), weighting
+        # real and imaginary part of the sparse code in the same way
+        regularization_parameter_map = rearrange(
+            regularization_parameter_map,
+            "(filter batch) 1 y x -> filter batch 1 1 y x",
+            filter=n_filters,
+            batch=n_batch,
+        )
+
         regularization_parameter_map = self.upper_bound / (
             1.0 + torch.exp(-self.sigmoid_beta * regularization_parameter_map)
         )
@@ -153,11 +243,14 @@ class SpatiallyAdaptiveConvSynthesisNet2D(torch.nn.Module):
     def _compute_operator_norm(self) -> None:
         """Compute and store the convolutional dictionary operator norm."""
         dummy_sparse_code = self._make_dummy_sparse_code_for_operator_norm()
-        operator_norm = self.conv_dictionary_op.operator_norm(
-            initial_value=dummy_sparse_code,
-            dim=None,
-            max_iterations=16,
-        )
+        # the adjoint of the circular padding used in the operator norm estimation
+        # is implemented via autograd and therefore requires grad mode to be enabled
+        with torch.autograd.set_grad_enabled(True):
+            operator_norm = self.conv_dictionary_op.operator_norm(
+                initial_value=dummy_sparse_code,
+                dim=None,
+                max_iterations=16,
+            )
 
         self.operator_norm.resize_as_(operator_norm)
         self.operator_norm.copy_(operator_norm.detach())
@@ -307,7 +400,9 @@ class SpatiallyAdaptiveConvSynthesisNet2D(torch.nn.Module):
         """
         # if no regularization parameter map is provided, compute it with the network
         if regularization_parameter is None:
-            regularization_parameter = self.parameter_map_network(initial_image)
+            regularization_parameter = self.parameter_map_network(
+                initial_image, self.conv_dictionary_op
+            )
 
         image_low_passed = self.low_pass_filtering_image(
             initial_image, self.low_pass_filtering_parameter
